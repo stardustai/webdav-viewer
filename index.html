@@ -5,10 +5,97 @@
     <link rel="icon" type="image/png" href="/favicon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>WebDAV Viewer 🐝</title>
+
+    <!-- 防闪烁脚本 - 在页面加载前应用主题 -->
+    <script>
+      (function() {
+        // 从 localStorage 读取主题设置
+        const theme = localStorage.getItem('theme') || 'system';
+        const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+        let shouldBeDark = false;
+        if (theme === 'dark') {
+          shouldBeDark = true;
+        } else if (theme === 'light') {
+          shouldBeDark = false;
+        } else {
+          shouldBeDark = systemPrefersDark;
+        }
+
+        // 立即应用主题到 html 元素
+        if (shouldBeDark) {
+          document.documentElement.classList.add('dark');
+        } else {
+          document.documentElement.classList.remove('dark');
+        }
+      })();
+    </script>
+
+    <!-- 初始样式 - 防止白屏 -->
+    <style>
+      /* 确保初始背景色正确 */
+      html {
+        background-color: #ffffff;
+      }
+      html.dark {
+        background-color: #1f2937;
+      }
+
+      body {
+        background-color: #ffffff;
+        color: #111827;
+        margin: 0;
+        padding: 0;
+      }
+
+      .dark body {
+        background-color: #1f2937;
+        color: #f9fafb;
+      }
+
+      /* 根容器样式 */
+      #root {
+        min-height: 100vh;
+        background-color: inherit;
+      }
+
+      /* 加载指示器样式 */
+      .app-loading {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+        background-color: inherit;
+      }
+
+      .loading-spinner {
+        width: 32px;
+        height: 32px;
+        border: 3px solid #e5e7eb;
+        border-top: 3px solid #4f46e5;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+      }
+
+      .dark .loading-spinner {
+        border-color: #374151;
+        border-top-color: #6366f1;
+      }
+
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+    </style>
   </head>
 
   <body>
-    <div id="root"></div>
+    <!-- 初始加载指示器 -->
+    <div id="root">
+      <div class="app-loading">
+        <div class="loading-spinner"></div>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

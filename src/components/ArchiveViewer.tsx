@@ -332,8 +332,8 @@ export const ArchiveViewer: React.FC<ArchiveViewerProps> = ({
     <div className="h-full flex flex-col">
       <div className="flex-1 flex min-h-0">
         {/* 文件列表 */}
-        <div className="w-1/2 border-r flex flex-col min-h-0">
-          <div className="p-4 border-b flex-shrink-0">
+        <div className="w-1/2 border-r border-gray-200 dark:border-gray-700 flex flex-col min-h-0">
+          <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
               <input
@@ -341,7 +341,7 @@ export const ArchiveViewer: React.FC<ArchiveViewerProps> = ({
                 placeholder={t('search.files.placeholder')}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600"
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700"
               />
             </div>
           </div>
@@ -376,7 +376,7 @@ export const ArchiveViewer: React.FC<ArchiveViewerProps> = ({
             <LoadingDisplay message={t('loading.preview')} />
           ) : selectedEntry ? (
             <div className="flex-1 flex flex-col min-h-0">
-              <div className="p-4 border-b bg-gray-50 dark:bg-gray-800 flex-shrink-0">
+              <div className="p-4 -my-0.5 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 flex-shrink-0">
                 <div className="flex items-center justify-between">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center space-x-2">
@@ -450,13 +450,13 @@ export const ArchiveViewer: React.FC<ArchiveViewerProps> = ({
                 ) : filePreview ? (
                   <div className="h-full flex flex-col min-h-0">
                     <div className="flex-1 overflow-auto min-h-0">
-                      <pre className="whitespace-pre-wrap text-sm font-mono p-4 bg-gray-50 dark:bg-gray-900 rounded border">
+                      <pre className="whitespace-pre-wrap text-sm font-mono p-4 bg-gray-50 dark:bg-gray-900 rounded border border-gray-200 dark:border-gray-700">
                         {filePreview.content}
                       </pre>
                     </div>
 
                     {selectedEntry && currentLoadedSize < selectedEntry.size && (
-                      <div className="p-3 border-t bg-gray-50 dark:bg-gray-800 flex-shrink-0">
+                      <div className="p-3 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 flex-shrink-0">
                         {isLoadingMore && (
                           <div className="mb-3">
                             <div className="flex items-center justify-between mb-2">

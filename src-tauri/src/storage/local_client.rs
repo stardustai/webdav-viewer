@@ -308,6 +308,8 @@ impl StorageClient for LocalFileSystemClient {
             return Err(StorageError::NotConnected);
         }
 
+        log::debug!("本地文件读取范围: path={}, start={}, length={}", path, start, length);
+
         let file_path = self.build_safe_path(path)?;
 
         if !file_path.exists() {
@@ -329,6 +331,7 @@ impl StorageClient for LocalFileSystemClient {
             .map_err(|e| StorageError::IoError(format!("Failed to read file: {}", e)))?;
 
         buffer.truncate(bytes_read);
+        log::debug!("本地文件实际读取到 {} 字节", buffer.len());
         Ok(buffer)
     }
 
@@ -405,6 +408,21 @@ impl StorageClient for LocalFileSystemClient {
         }
 
         Ok(())
+    }
+
+    fn get_download_url(&self, path: &str) -> Result<String, StorageError> {
+        // 如果传入的已经是 file:// URL，直接返回
+        if path.starts_with("file://") {
+            return Ok(path.to_string());
+        }
+
+        // 否则，构建完整路径并转换为 file:// URL
+        let full_path = self.build_safe_path(path)?;
+
+        // 将路径转换为 file:// URL
+        let file_url = format!("file://{}", full_path.to_string_lossy());
+
+        Ok(file_url)
     }
 }
 

@@ -3,8 +3,6 @@ use base64::{Engine as _, engine::general_purpose};
 mod storage;
 mod archive;  // 压缩包处理功能 - 前端需要使用
 mod download; // 下载管理功能
-#[allow(dead_code)]
-mod cache;    // 智能缓存机制 - 暂未使用
 
 use archive::{handlers::ArchiveHandler, types::*};
 use storage::{StorageRequest, ConnectionConfig, get_storage_manager, ListOptions};
@@ -232,9 +230,26 @@ async fn download_file_with_progress(
     headers: std::collections::HashMap<String, String>,
     filename: String,
 ) -> Result<String, String> {
+    // 获取存储管理器
+    let manager = get_storage_manager().await;
+    let manager = manager.lock().await;
+
+    // 通过存储客户端获取正确的下载 URL
+    // 每个存储客户端会根据自己的特点处理路径到 URL 的转换
+    let download_url = match manager.get_download_url(&url) {
+        Ok(processed_url) => {
+            println!("Generated download URL: {} -> {}", url, processed_url);
+            processed_url
+        },
+        Err(e) => {
+            println!("Failed to generate download URL for {}: {}, using original URL", url, e);
+            url
+        }
+    };
+
     let request = DownloadRequest {
         method,
-        url,
+        url: download_url,
         headers,
         filename,
     };
@@ -272,71 +287,59 @@ async fn show_folder_dialog(app: tauri::AppHandle) -> Result<Option<String>, Str
 
 // 压缩包处理命令
 
-/// 分析压缩包结构
+/// 分析压缩包结构（统一接口）
 #[tauri::command]
 async fn analyze_archive(
     url: String,
-    headers: std::collections::HashMap<String, String>,
+    _headers: std::collections::HashMap<String, String>,
     filename: String,
     max_size: Option<usize>,
 ) -> Result<ArchiveInfo, String> {
-    // 检查是否是本地文件路径
-    if !url.starts_with("http://") && !url.starts_with("https://") {
-        // 本地文件，通过当前存储客户端处理
-        let manager = get_storage_manager().await;
-        let manager = manager.lock().await;
+    // 统一使用StorageClient接口进行流式分析
+    let manager = get_storage_manager().await;
+    let manager = manager.lock().await;
 
-        if let Some(client) = manager.get_current_client() {
-            return ARCHIVE_HANDLER.analyze_archive_with_client(
-                client.clone(),
-                url,
-                filename,
-                max_size
-            ).await;
-        } else {
-            Err("No storage client available".to_string())
-        }
+    if let Some(client) = manager.get_current_client() {
+        let protocol = client.protocol();
+        println!("使用{}存储客户端进行流式分析: {}", protocol, url);
+
+        ARCHIVE_HANDLER.analyze_archive_with_client(
+            client.clone(),
+            url,
+            filename,
+            max_size
+        ).await
     } else {
-        // HTTP/HTTPS URL，使用原有逻辑
-        return ARCHIVE_HANDLER.analyze_archive(url, headers, filename, max_size).await;
+        Err("No storage client available. Please connect to a storage first (Local, WebDAV, or OSS)".to_string())
     }
 }
 
-/// 获取文件预览
+/// 获取文件预览（统一接口）
 #[tauri::command(rename_all = "camelCase")]
 async fn get_file_preview(
     url: String,
-    headers: std::collections::HashMap<String, String>,
+    _headers: std::collections::HashMap<String, String>,
     filename: String,
     entry_path: String,
     max_preview_size: Option<usize>
 ) -> Result<FilePreview, String> {
-    // 检查是否是本地文件路径
-    if !url.starts_with("http://") && !url.starts_with("https://") {
-        // 本地文件，通过当前存储客户端处理
-        let manager = get_storage_manager().await;
-        let manager = manager.lock().await;
+    // 统一使用StorageClient接口进行流式预览
+    let manager = get_storage_manager().await;
+    let manager = manager.lock().await;
 
-        if let Some(client) = manager.get_current_client() {
-            return ARCHIVE_HANDLER.get_file_preview_with_client(
-                client.clone(),
-                url,
-                filename,
-                entry_path,
-                max_preview_size
-            ).await;
-        } else {
-            Err("No storage client available".to_string())
-        }
-    } else {
-        // HTTP/HTTPS URL，使用原有逻辑
-        return ARCHIVE_HANDLER.get_file_preview(
+    if let Some(client) = manager.get_current_client() {
+        let protocol = client.protocol();
+        println!("使用{}存储客户端进行流式预览: {} -> {}", protocol, url, entry_path);
+
+        ARCHIVE_HANDLER.get_file_preview_with_client(
+            client.clone(),
             url,
-            headers,
             filename,
             entry_path,
             max_preview_size
-        ).await;
+        ).await
+    } else {
+        Err("No storage client available. Please connect to a storage first (Local, WebDAV, or OSS)".to_string())
     }
 }
 
@@ -358,49 +361,7 @@ async fn get_compression_info(filename: String) -> Result<CompressionType, Strin
     Ok(ARCHIVE_HANDLER.get_compression_info(&filename))
 }
 
-/// 智能预览 - 自动检测最佳预览方式
-#[tauri::command(rename_all = "camelCase")]
-async fn smart_preview(
-    url: String,
-    headers: std::collections::HashMap<String, String>,
-    filename: String,
-    entry_path: String
-) -> Result<FilePreview, String> {
-    ARCHIVE_HANDLER.smart_preview(
-        url,
-        headers,
-        filename,
-        entry_path
-    ).await
-}
-
-/// 批量预览文件
-#[tauri::command(rename_all = "camelCase")]
-async fn batch_preview(
-    url: String,
-    headers: std::collections::HashMap<String, String>,
-    filename: String,
-    entry_paths: Vec<String>,
-    max_preview_size: Option<usize>
-) -> Result<Vec<(String, Result<FilePreview, String>)>, String> {
-    ARCHIVE_HANDLER.batch_preview(
-        url,
-        headers,
-        filename,
-        entry_paths,
-        max_preview_size
-    ).await
-}
-
-/// 验证压缩包完整性
-#[tauri::command]
-async fn validate_archive(
-    url: String,
-    headers: std::collections::HashMap<String, String>,
-    filename: String,
-) -> Result<bool, String> {
-    ARCHIVE_HANDLER.validate_archive(url, headers, filename).await
-}
+/// 获取支持的压缩格式列表
 
 /// 获取支持的压缩格式列表
 #[tauri::command]
@@ -455,9 +416,6 @@ pub fn run() {
             is_supported_archive,
             supports_streaming,
             get_compression_info,
-            smart_preview,
-            batch_preview,
-            validate_archive,
             get_supported_formats,
             format_file_size,
             get_compression_ratio,

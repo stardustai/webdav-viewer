@@ -37,10 +37,15 @@ export const VirtualizedFileList: React.FC<VirtualizedFileListProps> = ({
 
   // 过滤和排序文件
   const processedFiles = useMemo(() => {
+    // 首先过滤掉空文件名和无效条目
+    let filteredFiles = files.filter(file =>
+      file.basename && file.basename.trim() !== ''
+    );
+
     // 过滤隐藏文件
-    let filteredFiles = showHidden
-      ? files
-      : files.filter(file => !file.basename.startsWith('.'));
+    filteredFiles = showHidden
+      ? filteredFiles
+      : filteredFiles.filter(file => !file.basename.startsWith('.'));
 
     // 根据搜索词过滤文件名
     if (searchTerm.trim()) {

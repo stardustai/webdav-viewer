@@ -4,11 +4,11 @@ import { FileBrowser } from './components/FileBrowser';
 import { FileViewer } from './components/FileViewer';
 import { DownloadProgress } from './components/DownloadProgress';
 import { UpdateNotification, useUpdateNotification } from './components/UpdateNotification';
+import { SplashScreen } from './components/SplashScreen';
 import { WebDAVFile } from './types';
 import { StorageServiceManager } from './services/storage';
 import { navigationHistoryService } from './services/navigationHistory';
 import { useTheme } from './hooks/useTheme';
-import { Loader2 } from 'lucide-react';
 import './i18n';
 import './App.css';
 
@@ -29,6 +29,14 @@ function App() {
   const [showDownloadProgress, setShowDownloadProgress] = useState(true);
 
   useEffect(() => {
+    // 移除初始加载指示器
+    const removeInitialLoader = () => {
+      const initialLoader = document.querySelector('.app-loading');
+      if (initialLoader) {
+        initialLoader.remove();
+      }
+    };
+
     // 尝试自动连接到上次的服务
     const tryAutoConnect = async () => {
       try {
@@ -38,6 +46,7 @@ function App() {
         if (wasDisconnected) {
           // 如果用户主动断开过连接，直接显示连接页面
           setAppState('connecting');
+          removeInitialLoader();
           return;
         }
 
@@ -47,9 +56,11 @@ function App() {
         } else {
           setAppState('connecting');
         }
+        removeInitialLoader();
       } catch (error) {
         console.warn('Auto connect failed:', error);
         setAppState('connecting');
+        removeInitialLoader();
       }
     };
 
@@ -100,23 +111,20 @@ function App() {
   };
 
   if (appState === 'initializing') {
+    return <SplashScreen />;
+  }
+
+  if (appState === 'connecting') {
     return (
-      <div className="h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="w-8 h-8 animate-spin text-indigo-600 mx-auto mb-4" />
-          <p className="text-gray-600 dark:text-gray-300">正在初始化...</p>
-        </div>
+      <div className="page-transition">
+        <ConnectionPanel onConnect={handleConnect} />
       </div>
     );
   }
 
-  if (appState === 'connecting') {
-    return <ConnectionPanel onConnect={handleConnect} />;
-  }
-
   // 主应用区域 - FileBrowser 和 FileViewer 都存在，但只显示其中一个
   return (
-    <div className="h-screen">
+    <div className="h-screen page-transition">
       {/* 文件浏览器 - 始终渲染但可能隐藏 */}
       <div className={appState === 'viewing' ? 'hidden' : ''}>
         <FileBrowser
@@ -129,12 +137,14 @@ function App() {
 
       {/* 文件查看器 - 只在查看状态时显示 */}
       {appState === 'viewing' && selectedFile && (
-        <FileViewer
-          file={selectedFile}
-          filePath={selectedFilePath}
-          storageClient={selectedStorageClient}
-          onBack={handleBackToBrowser}
-        />
+        <div className="page-transition">
+          <FileViewer
+            file={selectedFile}
+            filePath={selectedFilePath}
+            storageClient={selectedStorageClient}
+            onBack={handleBackToBrowser}
+          />
+        </div>
       )}
 
       {/* 下载进度组件 */}

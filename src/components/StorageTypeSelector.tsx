@@ -1,6 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { Server, Folder } from 'lucide-react';
+import { Server, Folder, Cloud } from 'lucide-react';
 import { StorageClientType } from '../services/storage/types';
 
 interface StorageTypeSelectorProps {
@@ -26,6 +26,12 @@ export const StorageTypeSelector: React.FC<StorageTypeSelectorProps> = ({
       label: t('storage.type.local', '本机文件'),
       icon: Folder,
       description: t('storage.type.local.description', '浏览本机文件系统')
+    },
+    {
+      type: 'oss' as StorageClientType,
+      label: t('storage.type.oss', 'OSS 存储'),
+      icon: Cloud,
+      description: t('storage.type.oss.description', '连接到对象存储服务')
     }
   ];
 
@@ -34,7 +40,7 @@ export const StorageTypeSelector: React.FC<StorageTypeSelectorProps> = ({
       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
         {t('storage.type.select', '选择存储类型')}
       </label>
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-3 gap-2">
         {storageTypes.map(({ type, label, icon: Icon, description }) => (
           <button
             key={type}

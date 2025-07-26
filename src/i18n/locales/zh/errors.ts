@@ -2,6 +2,7 @@ export const errors = {
   // 连接错误
   'error.connection.failed': '连接失败，请检查服务器地址和凭据。',
   'error.credentials': '连接失败，请验证服务器地址和凭据。',
+  'error.oss.connection.failed': 'OSS 连接失败，请检查配置信息。',
 
   // 文件操作错误
   'error.load.directory': '加载目录内容失败',

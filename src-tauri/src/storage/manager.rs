@@ -4,6 +4,7 @@ use std::sync::Arc;
 use super::traits::{StorageClient, StorageRequest, StorageResponse, StorageError, ConnectionConfig, StorageCapabilities, DirectoryResult, ListOptions};
 use super::webdav_client::WebDAVClient;
 use super::local_client::LocalFileSystemClient;
+use super::oss_client::OSSClient;
 
 pub struct StorageManager {
     clients: HashMap<String, Arc<dyn StorageClient + Send + Sync>>,
@@ -27,6 +28,11 @@ impl StorageManager {
             },
             "local" => {
                 let mut client = LocalFileSystemClient::new();
+                client.connect(config).await?;
+                Arc::new(client)
+            },
+            "oss" => {
+                let mut client = OSSClient::new(config.clone())?;
                 client.connect(config).await?;
                 Arc::new(client)
             },
@@ -94,8 +100,17 @@ impl StorageManager {
         Some(client.clone())
     }
 
+    pub fn get_download_url(&self, path: &str) -> Result<String, StorageError> {
+        let client_id = self.active_client.as_ref()
+            .ok_or(StorageError::NotConnected)?;
+        let client = self.clients.get(client_id)
+            .ok_or(StorageError::NotConnected)?;
+
+        client.get_download_url(path)
+    }
+
     pub fn supported_protocols(&self) -> Vec<&str> {
-        vec!["webdav", "local"] // 支持 WebDAV 和本机文件系统
+        vec!["webdav", "local", "oss"] // 支持 WebDAV、本机文件系统和 OSS
     }
 }
 

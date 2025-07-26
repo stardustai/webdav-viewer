@@ -2,11 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { User, Lock } from 'lucide-react';
 import { StorageServiceManager } from '../services/storage';
-import { StorageClientType } from '../services/storage/types';
+import { StorageClientType, ConnectionConfig } from '../services/storage/types';
 import { LanguageSwitcher } from './LanguageSwitcher';
 import { ConnectionSelector } from './ConnectionSelector';
 import { StorageTypeSelector } from './StorageTypeSelector';
 import { LocalConnectionForm } from './LocalConnectionForm';
+import { OSSConnectionForm } from './OSSConnectionForm';
 import { StoredConnection } from '../services/connectionStorage';
 
 interface ConnectionPanelProps {
@@ -65,6 +66,9 @@ export const ConnectionPanel: React.FC<ConnectionPanelProps> = ({ onConnect }) =
           // 提取本地路径（移除 local:// 前缀）
           const localPath = defaultConnection.url.replace('local://', '');
           setDefaultLocalPath(localPath);
+        } else if (defaultConnection.url.startsWith('oss://')) {
+          setStorageType('oss');
+          handleSelectStoredConnection(defaultConnection);
         } else {
           setStorageType('webdav');
           handleSelectStoredConnection(defaultConnection);
@@ -77,17 +81,31 @@ export const ConnectionPanel: React.FC<ConnectionPanelProps> = ({ onConnect }) =
   }, []);
 
   const handleSelectStoredConnection = (connection: StoredConnection) => {
-    setUrl(connection.url);
-    setUsername(connection.username);
-    if (connection.password) {
-      setPassword('••••••••'); // 显示占位符而不是真实密码
-      setIsPasswordFromStorage(true);
-    } else {
-      setPassword('');
-      setIsPasswordFromStorage(false);
-    }
     setSelectedStoredConnection(connection);
     setError(''); // 清除之前的错误
+
+    // 根据连接类型切换存储类型
+    if (connection.url.startsWith('local://')) {
+      setStorageType('local');
+      // 提取本地路径（移除 local:// 前缀）
+      const localPath = connection.url.replace('local://', '');
+      setDefaultLocalPath(localPath);
+    } else if (connection.url.startsWith('oss://')) {
+      setStorageType('oss');
+      // OSS 连接的处理将在 OSSConnectionForm 中进行
+    } else {
+      // WebDAV 连接
+      setStorageType('webdav');
+      setUrl(connection.url);
+      setUsername(connection.username);
+      if (connection.password) {
+        setPassword('••••••••'); // 显示占位符而不是真实密码
+        setIsPasswordFromStorage(true);
+      } else {
+        setPassword('');
+        setIsPasswordFromStorage(false);
+      }
+    }
   };
 
   const handleConnect = async (e: React.FormEvent) => {
@@ -100,7 +118,7 @@ export const ConnectionPanel: React.FC<ConnectionPanelProps> = ({ onConnect }) =
         // WebDAV 连接逻辑
         const connectionName = selectedStoredConnection ?
           selectedStoredConnection.name :
-          `${username}@${new URL(url).hostname}`;
+          t('connection.name.webdav', 'WebDAV({{host}})', { host: new URL(url).hostname });
 
         // 如果密码来自存储，使用存储的真实密码；否则使用输入的密码
         const actualPassword = isPasswordFromStorage && selectedStoredConnection?.password
@@ -141,7 +159,7 @@ export const ConnectionPanel: React.FC<ConnectionPanelProps> = ({ onConnect }) =
       const success = await StorageServiceManager.connectToLocal(
         rootPath,
         true,
-        t('local.connection.name', '本机文件 ({{path}})', { path: rootPath })
+        t('connection.name.local', '本机文件({{path}})', { path: rootPath })
       );
 
       if (success) {
@@ -165,6 +183,41 @@ export const ConnectionPanel: React.FC<ConnectionPanelProps> = ({ onConnect }) =
     }
   };
 
+  const handleOSSConnect = async (config: ConnectionConfig) => {
+    setConnecting(true);
+    setError('');
+
+    try {
+      // 断开任何现有连接
+      if (StorageServiceManager.isConnected()) {
+        StorageServiceManager.disconnect();
+      }
+
+      // 使用 StorageServiceManager 连接到 OSS
+      const success = await StorageServiceManager.connectToOSS(config);
+
+      if (success) {
+        // OSS 连接成功后，查找并设置为默认连接
+        // 需要根据 oss:// 格式的 URL 来查找连接
+        const connections = StorageServiceManager.getStoredConnections();
+        const ossConnection = connections.find(conn =>
+          conn.url.startsWith('oss://') && conn.username === config.username
+        );
+        if (ossConnection) {
+          StorageServiceManager.setDefaultConnection(ossConnection.id);
+        }
+        onConnect();
+      } else {
+        setError(t('error.oss.connection.failed', 'OSS 连接失败'));
+      }
+    } catch (err) {
+      console.error('OSS connection error:', err);
+      setError(err instanceof Error ? err.message : t('error.connection.failed'));
+    } finally {
+      setConnecting(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
       {/* 语言切换器和主题切换器 - 右上角 */}
@@ -176,11 +229,31 @@ export const ConnectionPanel: React.FC<ConnectionPanelProps> = ({ onConnect }) =
         {/* 连接表单 */}
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl p-6 w-full">
           <div className="text-center mb-6">
-            <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-1">{t('storage.browser', '存储浏览器')}</h1>
-            <p className="text-sm text-gray-600 dark:text-gray-300">{t('connect.storage.description', '连接到存储服务或本地文件系统')}</p>
+            <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-1">{t('webdav.browser')}</h1>
+            <p className="text-sm text-gray-600 dark:text-gray-300">{t('connect.storage')}</p>
           </div>
 
           <div className="space-y-4">
+            {/* 已保存的连接 - 独立于存储类型 */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                {t('saved.connections')}
+              </label>
+              <ConnectionSelector
+                onSelect={handleSelectStoredConnection}
+                selectedConnection={selectedStoredConnection}
+              />
+            </div>
+
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-gray-300 dark:border-gray-600" />
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="bg-white dark:bg-gray-800 px-2 text-gray-500 dark:text-gray-400">{t('or.new.connection')}</span>
+              </div>
+            </div>
+
             {/* 存储类型选择器 */}
             <StorageTypeSelector
               selectedType={storageType}
@@ -188,20 +261,47 @@ export const ConnectionPanel: React.FC<ConnectionPanelProps> = ({ onConnect }) =
                 setStorageType(type);
                 setError(''); // 清除错误
                 // 切换类型时重置表单
+                if (type === 'webdav') {
+                  // 切换到 WebDAV 时保持选中的连接（如果是 WebDAV 类型）
+                  if (selectedStoredConnection && !selectedStoredConnection.url.startsWith('local://') && !selectedStoredConnection.url.startsWith('oss://')) {
+                    // 保持 WebDAV 连接选择
+                  } else {
+                    setSelectedStoredConnection(null);
+                    setUrl('');
+                    setUsername('');
+                    setPassword('');
+                    setIsPasswordFromStorage(false);
+                  }
+                } else if (type === 'local') {
+                  // 切换到本地存储时
+                  if (selectedStoredConnection && selectedStoredConnection.url.startsWith('local://')) {
+                    // 保持本地连接选择
+                    const localPath = selectedStoredConnection.url.replace('local://', '');
+                    setDefaultLocalPath(localPath);
+                  } else {
+                    setSelectedStoredConnection(null);
+                    // 尝试填充最近使用的路径
+                    if (!defaultLocalPath) {
+                      const recentPath = getRecentLocalPath();
+                      if (recentPath) {
+                        setDefaultLocalPath(recentPath);
+                      }
+                    }
+                  }
+                } else if (type === 'oss') {
+                  // 切换到 OSS 时
+                  if (!selectedStoredConnection || !selectedStoredConnection.url.startsWith('oss://')) {
+                    setSelectedStoredConnection(null);
+                  }
+                  // OSS 表单会根据 selectedStoredConnection 自动填充
+                }
+
+                // 清除非当前类型的表单状态
                 if (type !== 'webdav') {
-                  setSelectedStoredConnection(null);
                   setUrl('');
                   setUsername('');
                   setPassword('');
                   setIsPasswordFromStorage(false);
-
-                  // 如果切换到本地存储，尝试填充最近使用的路径
-                  if (type === 'local' && !defaultLocalPath) {
-                    const recentPath = getRecentLocalPath();
-                    if (recentPath) {
-                      setDefaultLocalPath(recentPath);
-                    }
-                  }
                 }
               }}
             />
@@ -209,25 +309,6 @@ export const ConnectionPanel: React.FC<ConnectionPanelProps> = ({ onConnect }) =
             {storageType === 'webdav' ? (
               // WebDAV 连接表单
               <form onSubmit={handleConnect} className="space-y-4">
-                {/* 存储的连接选择器 */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    {t('saved.connections')}
-                  </label>
-                  <ConnectionSelector
-                    onSelect={handleSelectStoredConnection}
-                    selectedConnection={selectedStoredConnection}
-                  />
-                </div>
-
-                <div className="relative">
-                  <div className="absolute inset-0 flex items-center">
-                    <div className="w-full border-t border-gray-300 dark:border-gray-600" />
-                  </div>
-                  <div className="relative flex justify-center text-sm">
-                    <span className="bg-white dark:bg-gray-800 px-2 text-gray-500 dark:text-gray-400">{t('or.new.connection')}</span>
-                  </div>
-                </div>
 
                 <div>
                   <label htmlFor="url" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -326,15 +407,25 @@ export const ConnectionPanel: React.FC<ConnectionPanelProps> = ({ onConnect }) =
                   {connecting ? t('connecting') : t('connect')}
                 </button>
               </form>
-            ) : (
+            ) : storageType === 'local' ? (
               // 本机文件系统连接表单
               <LocalConnectionForm
                 onConnect={handleLocalConnect}
                 connecting={connecting}
                 error={error}
-                defaultPath={defaultLocalPath}
+                defaultPath={selectedStoredConnection?.url.startsWith('local://')
+                  ? selectedStoredConnection.url.replace('local://', '')
+                  : defaultLocalPath}
               />
-            )}
+            ) : storageType === 'oss' ? (
+              // OSS 连接表单
+              <OSSConnectionForm
+                onConnect={handleOSSConnect}
+                connecting={connecting}
+                error={error}
+                selectedConnection={selectedStoredConnection}
+              />
+            ) : null}
           </div>
         </div>
       </div>

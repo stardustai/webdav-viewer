@@ -1,6 +1,7 @@
 import { BaseStorageClient } from './BaseStorageClient';
 import { WebDAVStorageClient } from './WebDAVStorageClient';
 import { LocalStorageClient } from './LocalStorageClient';
+import { OSSStorageClient } from './OSSStorageClient';
 import { ConnectionConfig, StorageClientType } from './types';
 import { connectionStorage } from '../connectionStorage';
 
@@ -20,6 +21,8 @@ export class StorageClientFactory {
         return new WebDAVStorageClient();
       case 'local':
         return new LocalStorageClient();
+      case 'oss':
+        return new OSSStorageClient();
       default:
         throw new Error(`Unsupported storage type: ${type}`);
     }
@@ -82,7 +85,7 @@ export class StorageClientFactory {
    * 检查是否支持指定的存储类型
    */
   static isSupportedType(type: string): type is StorageClientType {
-    return ['webdav', 'local'].includes(type);
+    return ['webdav', 'local', 'oss'].includes(type);
   }
 }
 
@@ -101,6 +104,13 @@ export class StorageServiceManager {
     // 断开现有连接
     if (this.currentClient) {
       this.currentClient.disconnect();
+      this.currentClient = null;
+      this.currentConnection = null;
+    }
+
+    // 如果切换到不同类型的存储，清理对应的单例实例
+    if (this.currentConnection && this.currentConnection.type !== config.type) {
+      StorageClientFactory.disconnect(this.currentConnection.type);
     }
 
     // 连接新的存储
@@ -224,7 +234,7 @@ export class StorageServiceManager {
         url,
         username,
         password,
-        name: connectionName || `WebDAV (${new URL(url).hostname})`
+        name: connectionName || `WebDAV(${new URL(url).hostname})`
       };
 
       await this.setCurrentStorage(config);
@@ -263,6 +273,25 @@ export class StorageServiceManager {
         // 本地文件系统连接
         const rootPath = defaultConnection.url.replace('local://', '');
         return await this.connectToLocal(rootPath, false, defaultConnection.name);
+      } else if (defaultConnection.url.startsWith('oss://')) {
+        // OSS 连接
+        const ossUrl = defaultConnection.url.replace('oss://', '');
+        const [host, bucket] = ossUrl.split('/');
+
+        // 从存储的连接中获取访问密钥信息
+        // 注意：OSS 连接的 username 是 accessKey，password 是 secretKey
+        const config: ConnectionConfig = {
+          type: 'oss',
+          url: `https://${host}`, // OSS endpoint
+          username: defaultConnection.username, // accessKey
+          password: defaultConnection.password || '', // secretKey
+          bucket: bucket || '', // bucket name
+          region: '', // 可以从 host 中解析或设为空
+          name: defaultConnection.name
+        };
+
+        await this.setCurrentStorage(config);
+        return true;
       } else {
         // WebDAV 连接
         return await this.connect(
@@ -445,7 +474,7 @@ export class StorageServiceManager {
         type: 'local',
         url: rootPath, // 使用 url 字段传递根路径
         rootPath, // 保留 rootPath 字段用于前端显示
-        name: connectionName || `本机文件 (${rootPath})`
+        name: connectionName || `Local Files(${rootPath})`
       };
 
       console.log('StorageServiceManager: Using config:', config);
@@ -468,6 +497,54 @@ export class StorageServiceManager {
       return true;
     } catch (error) {
       console.error('Local storage connection failed:', error);
+      return false;
+    }
+  }
+
+  // ========== OSS 连接方法 ==========
+
+  /**
+   * 连接到 OSS 对象存储
+   */
+  static async connectToOSS(config: ConnectionConfig): Promise<boolean> {
+    try {
+      console.log('StorageServiceManager: Connecting to OSS storage');
+
+      // 验证配置
+      if (!config.url || !config.username || !config.password) {
+        throw new Error('OSS connection requires endpoint, access key, and secret key');
+      }
+
+      await this.setCurrentStorage(config);
+      console.log('StorageServiceManager: Successfully connected to OSS storage');
+
+      // 保存连接信息 - 使用 oss:// 协议格式
+      try {
+        const endpointUrl = new URL(config.url);
+        const ossUrl = `oss://${endpointUrl.hostname}${config.bucket ? '/' + config.bucket : ''}`;
+
+        const connection = {
+          url: ossUrl, // 使用 oss:// 协议格式
+          username: config.username,
+          password: config.password,
+          connected: true
+        };
+        connectionStorage.saveConnection(connection, config.name || 'OSS(Unknown)', true);
+      } catch (urlError) {
+        // 如果 URL 解析失败，使用备选格式
+        const ossUrl = `oss://${config.url.replace(/^https?:\/\//, '')}${config.bucket ? '/' + config.bucket : ''}`;
+        const connection = {
+          url: ossUrl,
+          username: config.username,
+          password: config.password,
+          connected: true
+        };
+        connectionStorage.saveConnection(connection, config.name || 'OSS(Unknown)', true);
+      }
+
+      return true;
+    } catch (error) {
+      console.error('OSS storage connection failed:', error);
       return false;
     }
   }

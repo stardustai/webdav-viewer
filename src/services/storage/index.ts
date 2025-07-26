@@ -2,6 +2,7 @@
 export { BaseStorageClient } from './BaseStorageClient';
 export { WebDAVStorageClient } from './WebDAVStorageClient';
 export { LocalStorageClient } from './LocalStorageClient';
+export { OSSStorageClient } from './OSSStorageClient';
 export { StorageClientFactory, StorageServiceManager } from './StorageManager';
 export * from './types';
 

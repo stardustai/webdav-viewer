@@ -1,5 +1,4 @@
 /// 共享的工具函数和常用逻辑
-use std::collections::HashMap;
 
 /// 检测 MIME 类型
 pub fn detect_mime_type(data: &[u8]) -> String {
@@ -61,91 +60,6 @@ pub fn is_text_content(data: &[u8]) -> bool {
 
     // 如果非文本字符比例小于10%，认为是文本
     (non_text_count as f64 / total_checked as f64) < 0.1
-}
-
-/// HTTP 客户端工具
-pub struct HttpClient;
-
-impl HttpClient {
-    /// 获取文件大小
-    #[allow(dead_code)]
-    pub async fn get_file_size(
-        url: &str,
-        headers: &HashMap<String, String>,
-    ) -> Result<u64, String> {
-        let client = reqwest::Client::new();
-        let mut request = client.head(url);
-
-        for (key, value) in headers {
-            request = request.header(key, value);
-        }
-
-        let response = request.send().await
-            .map_err(|e| format!("Failed to get file info: {}", e))?;
-
-        if let Some(content_length) = response.headers().get("content-length") {
-            content_length.to_str()
-                .map_err(|_| "Invalid content-length header".to_string())?
-                .parse::<u64>()
-                .map_err(|_| "Failed to parse content-length".to_string())
-        } else {
-            // 如果没有 content-length，尝试使用 GET 请求的前几个字节来估算
-            println!("No content-length header found, trying alternative method");
-
-            // 尝试部分下载来估算文件大小
-            if let Ok(range_response) = Self::download_range(url, headers, 0, 1).await {
-                if !range_response.is_empty() {
-                    // 如果支持范围请求，说明是大文件，返回一个估算值
-                    return Ok(u64::MAX); // 表示未知大小但是大文件
-                }
-            }
-
-            Err("No content-length header found and cannot determine file size".to_string())
-        }
-    }
-
-    /// 下载完整文件
-    pub async fn download_file(
-        url: &str,
-        headers: &HashMap<String, String>,
-    ) -> Result<Vec<u8>, String> {
-        let client = reqwest::Client::new();
-        let mut request = client.get(url);
-
-        for (key, value) in headers {
-            request = request.header(key, value);
-        }
-
-        let response = request.send().await
-            .map_err(|e| format!("Failed to download file: {}", e))?;
-
-        response.bytes().await
-            .map_err(|e| format!("Failed to read response: {}", e))
-            .map(|bytes| bytes.to_vec())
-    }
-
-    /// 下载文件范围
-    pub async fn download_range(
-        url: &str,
-        headers: &HashMap<String, String>,
-        start: u64,
-        length: u64,
-    ) -> Result<Vec<u8>, String> {
-        let client = reqwest::Client::new();
-        let mut request = client.get(url)
-            .header("Range", format!("bytes={}-{}", start, start + length - 1));
-
-        for (key, value) in headers {
-            request = request.header(key, value);
-        }
-
-        let response = request.send().await
-            .map_err(|e| format!("Failed to download range: {}", e))?;
-
-        response.bytes().await
-            .map_err(|e| format!("Failed to read range response: {}", e))
-            .map(|bytes| bytes.to_vec())
-    }
 }
 
 /// 文本解码工具
@@ -259,7 +173,6 @@ impl PreviewBuilder {
         self
     }
 
-    #[allow(dead_code)]
     pub fn encoding(mut self, encoding: String) -> Self {
         self.encoding = encoding;
         self

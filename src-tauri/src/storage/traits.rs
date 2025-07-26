@@ -52,7 +52,6 @@ pub struct StorageRequest {
     pub url: String,
     pub headers: HashMap<String, String>,
     pub body: Option<String>,
-    #[allow(dead_code)]
     pub options: Option<serde_json::Value>,
 }
 
@@ -73,13 +72,9 @@ pub struct ConnectionConfig {
 
 /// 存储客户端错误类型
 #[derive(Debug, thiserror::Error)]
-#[allow(dead_code)]
 pub enum StorageError {
     #[error("Connection failed: {0}")]
     ConnectionFailed(String),
-
-    #[error("Authentication failed: {0}")]
-    AuthenticationFailed(String),
 
     #[error("Request failed: {0}")]
     RequestFailed(String),
@@ -113,7 +108,6 @@ pub trait StorageClient: Send + Sync {
     async fn disconnect(&self);
 
     /// 检查是否已连接
-    #[allow(dead_code)]
     async fn is_connected(&self) -> bool;
 
     /// 列出目录内容
@@ -134,15 +128,20 @@ pub trait StorageClient: Send + Sync {
     /// 获取文件大小
     async fn get_file_size(&self, path: &str) -> Result<u64, StorageError>;
 
+    /// 获取下载 URL（对于需要签名的存储如 OSS）
+    fn get_download_url(&self, path: &str) -> Result<String, StorageError> {
+        // 默认实现：直接返回路径，适用于不需要签名的存储
+        Ok(path.to_string())
+    }
+
     /// 获取客户端能力
     fn capabilities(&self) -> StorageCapabilities;
 
     /// 获取协议名称
-    #[allow(dead_code)]
     fn protocol(&self) -> &str;
 
     /// 验证配置
-    #[allow(dead_code)]
+    #[allow(dead_code)] // API 保留方法
     fn validate_config(&self, config: &ConnectionConfig) -> Result<(), StorageError>;
 }
 

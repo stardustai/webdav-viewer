@@ -2,13 +2,51 @@
 @tailwind components;
 @tailwind utilities;
 
-/* HTML 和 body 背景色适配 */
+/* 确保样式优先级和一致性 */
 html {
   @apply bg-white dark:bg-gray-800;
+  transition: background-color 0.2s ease-in-out;
 }
 
 body {
   @apply bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100;
+  transition: background-color 0.2s ease-in-out, color 0.2s ease-in-out;
+  margin: 0;
+  padding: 0;
+}
+
+/* 根容器确保填满屏幕 */
+#root {
+  min-height: 100vh;
+  @apply bg-white dark:bg-gray-800;
+}
+
+/* 移除初始加载指示器（当 React 接管后） */
+.app-loading {
+  display: none !important;
+}
+
+/* 页面过渡动画 */
+.page-transition {
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 主题切换平滑过渡 */
+* {
+  transition-property: background-color, border-color, color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 200ms;
 }
 
 /* 搜索结果高亮动画 */

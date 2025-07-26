@@ -10,34 +10,12 @@ pub mod common;
 
 use crate::archive::types::*;
 use crate::storage::traits::StorageClient;
-use std::collections::HashMap;
 use std::sync::Arc;
 
-/// 压缩格式处理器的统一接口
-#[allow(dead_code)]
+/// 处理器分发接口（统一的流式压缩文件处理）
 #[async_trait::async_trait]
-pub trait CompressionHandler {
-    /// 分析压缩包结构（完整文件）
-    async fn analyze_complete(&self, data: &[u8]) -> Result<ArchiveInfo, String>;
-
-    /// 分析压缩包结构（流式，有文件大小）
-    async fn analyze_streaming(
-        &self,
-        url: &str,
-        headers: &HashMap<String, String>,
-        filename: &str,
-        file_size: u64,
-    ) -> Result<ArchiveInfo, String>;
-
-    /// 分析压缩包结构（流式，无文件大小）
-    async fn analyze_streaming_without_size(
-        &self,
-        url: &str,
-        headers: &HashMap<String, String>,
-        filename: &str,
-    ) -> Result<ArchiveInfo, String>;
-
-    /// 分析压缩包结构（通过 StorageClient）
+pub trait CompressionHandlerDispatcher: Send + Sync {
+    /// 通过存储客户端分析压缩文件（统一接口，支持流式分析）
     async fn analyze_with_client(
         &self,
         client: Arc<dyn StorageClient>,
@@ -46,16 +24,7 @@ pub trait CompressionHandler {
         max_size: Option<usize>,
     ) -> Result<ArchiveInfo, String>;
 
-    /// 提取文件预览
-    async fn extract_preview(
-        &self,
-        url: &str,
-        headers: &HashMap<String, String>,
-        entry_path: &str,
-        max_size: usize,
-    ) -> Result<FilePreview, String>;
-
-    /// 提取文件预览（通过 StorageClient）
+    /// 通过存储客户端提取文件预览（统一接口，支持流式提取）
     async fn extract_preview_with_client(
         &self,
         client: Arc<dyn StorageClient>,
@@ -64,53 +33,11 @@ pub trait CompressionHandler {
         max_size: usize,
     ) -> Result<FilePreview, String>;
 
-    /// 获取压缩格式类型
+    /// 获取压缩类型
+    #[allow(dead_code)] // API 保留方法，保持接口完整性
     fn compression_type(&self) -> CompressionType;
 
     /// 验证文件格式
-    fn validate_format(&self, data: &[u8]) -> bool;
-}
-
-/// 处理器分发接口（解决 async trait 的对象安全问题）
-#[async_trait::async_trait]
-pub trait CompressionHandlerDispatcher: Send + Sync {
-    async fn analyze_complete(&self, data: &[u8]) -> Result<ArchiveInfo, String>;
-    async fn analyze_streaming(
-        &self,
-        url: &str,
-        headers: &HashMap<String, String>,
-        filename: &str,
-        file_size: u64,
-    ) -> Result<ArchiveInfo, String>;
-    async fn analyze_streaming_without_size(
-        &self,
-        url: &str,
-        headers: &HashMap<String, String>,
-        filename: &str,
-    ) -> Result<ArchiveInfo, String>;
-    async fn analyze_with_client(
-        &self,
-        client: Arc<dyn StorageClient>,
-        file_path: &str,
-        filename: &str,
-        max_size: Option<usize>,
-    ) -> Result<ArchiveInfo, String>;
-    async fn extract_preview(
-        &self,
-        url: &str,
-        headers: &HashMap<String, String>,
-        entry_path: &str,
-        max_size: usize,
-    ) -> Result<FilePreview, String>;
-    async fn extract_preview_with_client(
-        &self,
-        client: Arc<dyn StorageClient>,
-        file_path: &str,
-        entry_path: &str,
-        max_size: usize,
-    ) -> Result<FilePreview, String>;
-    #[allow(dead_code)]
-    fn compression_type(&self) -> CompressionType;
     fn validate_format(&self, data: &[u8]) -> bool;
 }
 

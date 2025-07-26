@@ -89,7 +89,7 @@ export abstract class BaseStorageClient implements StorageClient {
   }
 
   /**
-   * 分析压缩文件
+   * 分析压缩文件（统一使用StorageClient流式接口）
    */
   async analyzeArchive(
     path: string,
@@ -97,21 +97,9 @@ export abstract class BaseStorageClient implements StorageClient {
     maxSize?: number
   ): Promise<ArchiveInfo> {
     try {
-      // 对于本地文件，使用存储客户端接口
-      if (this.protocol === 'local') {
-        return await this.analyzeArchiveWithClient(path, filename, maxSize);
-      }
-
-      // 对于WebDAV等远程存储，使用HTTP接口
-      const url = this.buildFileUrl(path);
-      const headers = this.getAuthHeaders();
-
-      return await CompressionService.analyzeArchive(
-        url,
-        headers,
-        filename,
-        maxSize
-      );
+      // 所有存储类型都使用统一的StorageClient流式接口
+      console.log(`${this.protocol}存储使用统一流式分析:`, { path, filename });
+      return await this.analyzeArchiveWithClient(path, filename, maxSize);
     } catch (error) {
       console.error('Failed to analyze archive:', error);
       throw error;
@@ -119,7 +107,7 @@ export abstract class BaseStorageClient implements StorageClient {
   }
 
   /**
-   * 获取压缩文件中的文件预览
+   * 获取压缩文件中的文件预览（统一使用StorageClient流式接口）
    */
   async getArchiveFilePreview(
     path: string,
@@ -128,22 +116,9 @@ export abstract class BaseStorageClient implements StorageClient {
     maxPreviewSize?: number
   ): Promise<FilePreview> {
     try {
-      // 对于本地文件，使用存储客户端接口
-      if (this.protocol === 'local') {
-        return await this.getArchiveFilePreviewWithClient(path, filename, entryPath, maxPreviewSize);
-      }
-
-      // 对于WebDAV等远程存储，使用HTTP接口
-      const url = this.buildFileUrl(path);
-      const headers = this.getAuthHeaders();
-
-      return await CompressionService.extractFilePreview(
-        url,
-        headers,
-        filename,
-        entryPath,
-        maxPreviewSize
-      );
+      // 所有存储类型都使用统一的StorageClient流式接口
+      console.log(`${this.protocol}存储使用统一流式预览:`, { path, filename, entryPath });
+      return await this.getArchiveFilePreviewWithClient(path, filename, entryPath, maxPreviewSize);
     } catch (error) {
       console.error('Failed to get archive file preview:', error);
       throw error;

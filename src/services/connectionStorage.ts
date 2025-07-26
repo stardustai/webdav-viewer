@@ -172,18 +172,24 @@ class ConnectionStorageService {
 
   private extractNameFromUrl(url: string): string {
     try {
-      // 使用标准化后的 URL 生成名称
-      const normalizedUrl = this.normalizeUrl(url);
-      const urlObj = new URL(normalizedUrl);
-      const hostname = urlObj.hostname;
-      const pathname = urlObj.pathname;
-
-      if (pathname && pathname !== '/') {
-        return `${hostname}${pathname.replace(/\/$/, '')}`;
+      // 检测连接类型并生成相应的名称格式
+      if (url.startsWith('local://')) {
+        const path = url.replace('local://', '');
+        return `Local Files(${path})`;
+      } else if (url.startsWith('oss://')) {
+        const ossUrl = url.replace('oss://', '');
+        const [host, bucket] = ossUrl.split('/');
+        return `OSS(${host}${bucket ? '-' + bucket : ''})`;
+      } else {
+        // WebDAV 连接
+        const normalizedUrl = this.normalizeUrl(url);
+        const urlObj = new URL(normalizedUrl);
+        const hostname = urlObj.hostname;
+        return `WebDAV(${hostname})`;
       }
-      return hostname;
     } catch (error) {
-      return url.replace(/\/+$/, '');
+      // 如果解析失败，返回简化的 URL
+      return url.replace(/^https?:\/\//, '').replace(/\/+$/, '') || 'Unknown Connection';
     }
   }
 }

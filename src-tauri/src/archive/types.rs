@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::fmt;
 
 /// 压缩格式类型
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -42,43 +43,7 @@ impl CompressionType {
         }
     }
 
-    #[allow(dead_code)]
-    pub fn from_header(data: &[u8]) -> Self {
-        if data.len() < 4 {
-            return CompressionType::Unknown;
-        }
-
-        // ZIP signature
-        let signature = u32::from_le_bytes([data[0], data[1], data[2], data[3]]);
-        if signature == 0x04034b50 || signature == 0x02014b50 {
-            return CompressionType::Zip;
-        }
-
-        // GZIP signature
-        if data[0] == 0x1f && data[1] == 0x8b {
-            return CompressionType::Gzip;
-        }
-
-        // TAR header check
-        if data.len() >= 262 && &data[257..262] == b"ustar" {
-            return CompressionType::Tar;
-        }
-
-        // 7z signature
-        if data.len() >= 6 && &data[0..6] == b"7z\xbc\xaf\x27\x1c" {
-            return CompressionType::SevenZip;
-        }
-
-        // RAR signature
-        if data.len() >= 7 && &data[0..7] == b"Rar!\x1a\x07\x00" {
-            return CompressionType::Rar;
-        }
-
-        CompressionType::Unknown
-    }
-
     /// 获取压缩类型的字符串表示
-    #[allow(dead_code)]
     pub fn as_str(&self) -> &'static str {
         match self {
             CompressionType::Zip => "zip",
@@ -105,9 +70,15 @@ impl CompressionType {
         // 7z 和 RAR 不支持流式处理，需要完整文件下载
     }
 
-    #[allow(dead_code)]
+    #[allow(dead_code)] // API 保留方法，可能在未来版本使用
     pub fn supports_random_access(&self) -> bool {
         matches!(self, CompressionType::Zip)
+    }
+}
+
+impl fmt::Display for CompressionType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.as_str())
     }
 }
 
@@ -179,6 +150,7 @@ pub enum FileType {
 }
 
 impl FileType {
+    #[allow(dead_code)] // 在其他模块中被使用
     pub fn from_path(path: &str) -> Self {
         let lower = path.to_lowercase();
         let ext = lower.split('.').last().unwrap_or("");
@@ -200,11 +172,12 @@ impl FileType {
         }
     }
 
+    #[allow(dead_code)] // 在其他模块中被使用
     pub fn is_text(&self) -> bool {
         matches!(self, FileType::Text)
     }
 
-    #[allow(dead_code)]
+    #[allow(dead_code)] // API 保留方法
     pub fn supports_preview(&self) -> bool {
         matches!(self, FileType::Text | FileType::Image)
     }

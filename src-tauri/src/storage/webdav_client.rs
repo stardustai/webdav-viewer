@@ -11,7 +11,6 @@ use crate::storage::traits::{StorageClient, StorageRequest, StorageResponse, Sto
 
 pub struct WebDAVClient {
     client: Client,
-    #[allow(dead_code)]
     config: ConnectionConfig,
     auth_header: Option<String>,
     connected: AtomicBool,
@@ -300,6 +299,8 @@ impl StorageClient for WebDAVClient {
             return Err(StorageError::NotConnected);
         }
 
+        println!("WebDAV读取文件范围: path={}, start={}, length={}", path, start, length);
+
         let url = format!("{}/{}", self.config.url.as_ref().unwrap().trim_end_matches('/'), path.trim_start_matches('/'));
 
         let mut request = self.client.get(&url);
@@ -308,10 +309,16 @@ impl StorageClient for WebDAVClient {
         }
 
         // 设置 Range 头
-        request = request.header("Range", format!("bytes={}-{}", start, start + length - 1));
+        let range_header = format!("bytes={}-{}", start, start + length - 1);
+        request = request.header("Range", range_header.clone());
+
+        println!("WebDAV Range请求: URL={}, Range={}", url, range_header);
 
         let response = request.send().await
             .map_err(|e| StorageError::NetworkError(format!("Request failed: {}", e)))?;
+
+        let status = response.status();
+        println!("WebDAV Range请求响应状态: {}", status);
 
         if !response.status().is_success() {
             return Err(StorageError::RequestFailed(
@@ -319,8 +326,18 @@ impl StorageClient for WebDAVClient {
             ));
         }
 
+        let content_length = response.headers()
+            .get("content-length")
+            .and_then(|v| v.to_str().ok())
+            .and_then(|s| s.parse::<u64>().ok())
+            .unwrap_or(0);
+
+        println!("WebDAV预期接收 {} 字节，实际Content-Length: {}", length, content_length);
+
         let bytes = response.bytes().await
             .map_err(|e| StorageError::NetworkError(format!("Failed to read response body: {}", e)))?;
+
+        println!("WebDAV实际接收到 {} 字节", bytes.len());
 
         Ok(bytes.to_vec())
     }
@@ -399,6 +416,31 @@ impl StorageClient for WebDAVClient {
         }
 
         Ok(())
+    }
+
+    fn get_download_url(&self, path: &str) -> Result<String, StorageError> {
+        // 如果传入的已经是完整 URL，直接返回
+        if path.starts_with("http://") || path.starts_with("https://") {
+            return Ok(path.to_string());
+        }
+
+        // 否则，构建完整的下载 URL
+        let base_url = self.config.url.as_ref()
+            .ok_or_else(|| StorageError::InvalidConfig("WebDAV URL not configured".to_string()))?;
+
+        let normalized_path = if path.starts_with('/') {
+            path.to_string()
+        } else {
+            format!("/{}", path)
+        };
+
+        let download_url = if base_url.ends_with('/') {
+            format!("{}{}", base_url.trim_end_matches('/'), normalized_path)
+        } else {
+            format!("{}{}", base_url, normalized_path)
+        };
+
+        Ok(download_url)
     }
 }
 

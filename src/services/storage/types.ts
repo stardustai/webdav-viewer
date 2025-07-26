@@ -21,6 +21,10 @@ export interface ConnectionConfig {
   name?: string; // 连接名称，用于显示和保存
   // 本机文件系统特定配置
   rootPath?: string; // 本机文件系统的根目录路径
+  // OSS 特定配置
+  bucket?: string;  // OSS bucket 名称
+  region?: string;  // OSS 区域
+  endpoint?: string; // OSS 端点地址（可选，通常从 url 解析）
 }
 
 // 统一的分页选项
